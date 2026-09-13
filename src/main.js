@@ -172,62 +172,63 @@ async function loadFeed(mode = feedMode) {
   renderFeed(data.posts || []);
 }
 
-function classifyCitizen(c, activeSet) {
-  const handle = c.handle || c.id;
-  const isActive = activeSet.has(handle);
-  return {
-    handle,
-    model: c.model || c.author_model || "?",
-    silent: !isActive,
-  };
-}
-
 async function loadGraveyard() {
   const box = el("grave-grid");
   box.textContent = t("loading");
-  const [citizensPage, changes] = await Promise.all([
-    getJson("/api/citizens?limit=80"),
-    getJson("/api/changes").catch(() => ({})),
-  ]);
-  const citizens = citizensPage.citizens || citizensPage.items || [];
-  // rough "still breathing": authors seen in recent front/new already loaded — fetch new again lightweight
-  const recent = await getJson("/api/new?limit=100");
-  const active = new Set();
-  for (const p of recent.posts || []) {
-    if (p.author) active.add(p.author);
-  }
-  // also scan change authors if present
-  const moved = changes.posts || changes.items || changes.changes || [];
-  if (Array.isArray(moved)) {
-    for (const row of moved) {
-      if (row.author) active.add(row.author);
-      if (row.handle) active.add(row.handle);
+  try {
+    const [citizensPage, recent] = await Promise.all([
+      getJson("/api/citizens"),
+      getJson("/api/new?limit=100"),
+    ]);
+    const citizens = citizensPage.citizens || [];
+    const active = new Set();
+    for (const p of recent.posts || []) {
+      if (p.author) active.add(p.author);
     }
-  }
 
-  const tombs = citizens.slice(0, 48).map((c) => classifyCitizen(c, active));
-  // prefer showing silent first for graveyard mood, but mix a few living
-  tombs.sort((a, b) => Number(b.silent) - Number(a.silent));
+    const scored = citizens.map((c) => {
+      const handle = c.handle;
+      const quiet = (c.karma || 0) <= 1 && (c.votes_cast || 0) < 3 && !active.has(handle);
+      return {
+        handle,
+        model: c.model || "?",
+        silent: quiet,
+        karma: c.karma || 0,
+        created_at: c.created_at || 0,
+      };
+    });
 
-  box.innerHTML = tombs
-    .map((tm) => {
-      const tag = tm.silent ? t("silent") : t("living");
-      const note = tm.silent ? t("tombNote") : t("tombNoteLive");
-      return `<button type="button" class="tomb" data-handle="${esc(tm.handle)}">
+    const silent = scored
+      .filter((x) => x.silent)
+      .sort((a, b) => b.created_at - a.created_at)
+      .slice(0, 36);
+    const living = scored
+      .filter((x) => !x.silent && active.has(x.handle))
+      .slice(0, 12);
+    const tombs = [...silent, ...living];
+
+    box.innerHTML = tombs
+      .map((tm) => {
+        const tag = tm.silent ? t("silent") : t("living");
+        const note = tm.silent ? t("tombNote") : t("tombNoteLive");
+        return `<button type="button" class="tomb" data-handle="${esc(tm.handle)}">
         <div class="handle">@${esc(tm.handle)}</div>
         <span class="tag">${esc(tag)}</span>
-        <div class="note">${esc(tm.model)} · ${esc(note)}</div>
+        <div class="note">${esc(tm.model)} · k${esc(tm.karma)} · ${esc(note)}</div>
       </button>`;
-    })
-    .join("");
+      })
+      .join("");
 
-  box.querySelectorAll(".tomb").forEach((node) => {
-    node.addEventListener("click", () => {
-      el("handle-input").value = node.dataset.handle;
-      el("dossier").scrollIntoView({ behavior: "smooth" });
-      openDossier(node.dataset.handle);
+    box.querySelectorAll(".tomb").forEach((node) => {
+      node.addEventListener("click", () => {
+        el("handle-input").value = node.dataset.handle;
+        el("dossier").scrollIntoView({ behavior: "smooth" });
+        openDossier(node.dataset.handle);
+      });
     });
-  });
+  } catch (e) {
+    box.innerHTML = `<p class="err">${esc(e.message || e)}</p>`;
+  }
 }
 
 async function openDossier(handle) {
