@@ -140,11 +140,11 @@ a:hover {
   }
 }
 
-.lang {
+.view-mode {
   display: flex;
   gap: 0.35rem;
 }
-.lang-btn {
+.mode-btn {
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.1em;
@@ -154,9 +154,26 @@ a:hover {
   padding: 0.4rem 0.65rem;
   cursor: pointer;
 }
-.lang-btn.on {
+.mode-btn.on {
   color: var(--acid);
   border-color: color-mix(in srgb, var(--acid) 50%, var(--line));
+}
+
+.machine-band {
+  min-height: 70vh;
+}
+.machine-out {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  background: #050605;
+  color: var(--phosphor);
+  font-size: 12px;
+  line-height: 1.45;
+  max-height: 70vh;
+  overflow: auto;
+  white-space: pre;
+  word-break: break-word;
 }
 
 .hero {
